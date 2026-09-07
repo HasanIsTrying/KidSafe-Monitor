@@ -1,0 +1,20 @@
+[project]
+name = "kidsafe"
+version = "1.0.0"
+description = "Flask backend and camera detector for KidSafe, a child-left-in-car alerting system."
+requires-python = ">=3.11"
+dependencies = [
+    "flask>=3.1.2",
+    "requests>=2.32.0",
+]
+
+[project.optional-dependencies]
+# Only the camera detector (run_age_detection.py) needs these; the server runs
+# without them. Install with:  pip install -e ".[detector]"
+detector = [
+    "opencv-python>=4.10",
+    "mediapipe>=0.10",
+    "transformers>=4.44",
+    "torch>=2.4",
+    "pillow>=10.4",
+]

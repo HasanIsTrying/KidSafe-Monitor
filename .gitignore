@@ -1,0 +1,42 @@
+# Dependencies & build output
+node_modules
+dist
+server/public
+.venv
+__pycache__
+*.pyc
+*.tar.gz
+vite.config.ts.*
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Secrets. auth_config.json holds the 019 SMS token and the OneSignal REST key.
+# Copy auth_config.example.json to create it. NEVER commit the real one.
+.env
+auth_config.json
+
+# Runtime data — rebuilt automatically on first startup.
+# The SQLite database holds accounts, real phone numbers, vehicle locations,
+# live session tokens and the alert history. It must never be published.
+kidsafe.db
+kidsafe.db-wal
+kidsafe.db-shm
+
+# Superseded by kidsafe.db, but old copies still contain real accounts.
+auth_store.json
+auth_store.json.tmp
+
+# AI/agent tooling state. Machine-specific and not part of the project - these
+# hold local settings, session transcripts and cached insights.
+.claude/
+.claude-flow/
+.agents/
+.swarm/
+.hive-mind/
+.roo/
+.mcp.json
+CLAUDE.md
+memory/
+coordination/

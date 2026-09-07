@@ -1,0 +1,10 @@
+{
+  "_comment": "Copy this file to auth_config.json and fill in your own values. auth_config.json is git-ignored and must never be committed. Values may also be supplied as environment variables (SMS019_USERNAME, SMS019_SOURCE, SMS019_TOKEN, ONESIGNAL_APP_ID, ONESIGNAL_API_KEY), which take priority over this file.",
+
+  "sms019_username": "your-019-account-username",
+  "sms019_source": "0500000000",
+  "sms019_token": "your-019-api-token",
+
+  "onesignal_app_id": "your-onesignal-app-id",
+  "onesignal_api_key": "your-onesignal-rest-api-key"
+}
