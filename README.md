@@ -385,15 +385,6 @@ Please read these before trusting it with anything that matters.
 - **SMS is Israel-only** as shipped, via the 019 gateway.
 - **Push requires HTTPS** and the parent granting notification permission.
 
-## Security
-
-- `auth_config.json` (SMS token, push key) and `kidsafe.db` (accounts, real phone
-  numbers, vehicle locations, live session tokens) are **git-ignored**. Keep it
-  that way.
-- Sessions are bearer tokens valid for one year, held in `localStorage`.
-- The public tunnel URL grants access to whoever holds it, including host camera
-  control.
-
 ## Tech stack
 
 Python · Flask · SQLite · OpenCV · MediaPipe · PyTorch + HuggingFace
