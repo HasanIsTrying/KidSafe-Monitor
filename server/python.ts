@@ -12,42 +12,30 @@ const CANDIDATES: string[][] =
     ? [["python"], ["py", "-3"], ["python3"]]
     : [["python3"], ["python"]];
 
+// What the backend needs to start, and what it additionally needs to classify
+// ages. torchvision is in the second list because transformers' image
+// processor refuses to load without it, even though nothing imports it.
+const BACKEND_IMPORTS = "import flask, requests";
+const DETECTOR_IMPORTS = "import torch, torchvision, transformers, cv2";
+
 let cached: string[] | null = null;
+let repairAttempted = false;
 
 function probe(command: string[], code: string): boolean {
   const [cmd, ...args] = command;
   const result = spawnSync(cmd, [...args, "-c", code], {
     stdio: "ignore",
-    timeout: 20_000,
+    timeout: 60_000,
   });
   return !result.error && result.status === 0;
 }
 
-/** Is this a Python 3 at all? */
-function isPython3(command: string[]): boolean {
-  return probe(command, "import sys; sys.exit(0 if sys.version_info[0] == 3 else 1)");
-}
+const isPython3 = (c: string[]) =>
+  probe(c, "import sys; sys.exit(0 if sys.version_info[0] == 3 else 1)");
+const canRunBackend = (c: string[]) => probe(c, BACKEND_IMPORTS);
+const hasDetectorStack = (c: string[]) => probe(c, DETECTOR_IMPORTS);
+const isComplete = (c: string[]) => canRunBackend(c) && hasDetectorStack(c);
 
-/**
- * Can this interpreter actually run the backend? A half-finished virtualenv is
- * a real Python 3 but has none of the packages, so checking only the version
- * would pick it and then fail at import time — or worse, load the server but
- * silently lose the age model. flask is the minimum main.py needs; torch marks
- * an interpreter that can also do age classification.
- */
-function canRunBackend(command: string[]): boolean {
-  return probe(command, "import flask, requests");
-}
-
-function hasDetectorStack(command: string[]): boolean {
-  return probe(command, "import torch, torchvision, transformers");
-}
-
-/**
- * The command that runs Python 3 on this machine, as [command, ...args].
- * Set the PYTHON env var to force a specific interpreter (e.g. a virtualenv).
- * Throws if no working Python 3 is found.
- */
 /** ./.venv's interpreter, if `script/setup.py --venv` created one. */
 function venvPython(): string[] | null {
   const venv = path.resolve(process.cwd(), ".venv");
@@ -58,6 +46,59 @@ function venvPython(): string[] | null {
   return existsSync(candidate) ? [candidate] : null;
 }
 
+/**
+ * Install the missing packages into `command`'s environment.
+ *
+ * setup.py installs into whichever interpreter runs it, so invoking it with
+ * this one fills exactly the environment we're about to use — repairing a
+ * half-built .venv in place rather than silently falling back to another
+ * Python and leaving the broken one to confuse the next person.
+ *
+ * Runs at most once per process, and can be turned off with
+ * KIDSAFE_NO_AUTO_INSTALL=1 for anyone who'd rather manage it themselves.
+ */
+function repair(command: string[], what: string): boolean {
+  if (repairAttempted) return false;
+  if (process.env.KIDSAFE_NO_AUTO_INSTALL) {
+    console.warn(
+      `Python packages are missing (${what}) and KIDSAFE_NO_AUTO_INSTALL is set.\n` +
+        `Install them with: python script/setup.py --venv`,
+    );
+    return false;
+  }
+  repairAttempted = true;
+
+  // ASCII only: a Windows console on a legacy codepage mangles anything else.
+  console.log(
+    `\nPython packages are missing (${what}).\n` +
+      `Installing them into ${command.join(" ")} - this can take a few\n` +
+      `minutes the first time, and only happens once.\n`,
+  );
+
+  const [cmd, ...args] = command;
+  const result = spawnSync(
+    cmd,
+    [...args, path.join("script", "setup.py"), "--skip-npm"],
+    { stdio: "inherit", cwd: process.cwd() },
+  );
+
+  if (result.error || result.status !== 0) {
+    console.warn(
+      `\nAutomatic install did not finish. Run it yourself to see why:\n` +
+        `    python script/setup.py --venv\n`,
+    );
+    return false;
+  }
+  return true;
+}
+
+/**
+ * The command that runs Python 3 for the backend, as [command, ...args].
+ *
+ * Prefers ./.venv, repairs whichever interpreter it settles on if packages are
+ * missing, and never lets an unusable interpreter shadow a working one.
+ * Set PYTHON to force a specific interpreter.
+ */
 export function resolvePython(): string[] {
   if (cached) return cached;
 
@@ -68,14 +109,14 @@ export function resolvePython(): string[] {
         `PYTHON is set to "${override}" but it isn't a working Python 3 interpreter.`,
       );
     }
-    cached = [override];
+    const forced = [override];
+    if (!isComplete(forced)) repair(forced, "for the interpreter PYTHON points at");
+    cached = forced;
     return cached;
   }
 
-  // A project virtualenv is tried first - it's where the setup script installs
-  // - but only if it actually has the packages. An abandoned or half-built
-  // .venv must not shadow a working system Python.
-  const candidates = [...(venvPython() ? [venvPython()!] : []), ...CANDIDATES];
+  const venv = venvPython();
+  const candidates = [...(venv ? [venv] : []), ...CANDIDATES];
   const usable = candidates.filter(isPython3);
 
   if (usable.length === 0) {
@@ -85,27 +126,40 @@ export function resolvePython(): string[] {
     );
   }
 
-  // Best: runs the backend AND can classify ages. Next best: runs the backend.
-  const complete = usable.find((c) => canRunBackend(c) && hasDetectorStack(c));
-  const runnable = complete ?? usable.find(canRunBackend);
+  // A ./.venv is the project's declared environment, so it wins even when it's
+  // incomplete — we fill it rather than quietly using a different Python and
+  // leaving a broken venv behind to confuse the next run. Without one, any
+  // interpreter that already has everything is good enough.
+  const venvUsable = venv ? usable.find((c) => c[0] === venv[0]) : undefined;
+  const target = venvUsable ?? usable.find(isComplete) ?? usable.find(canRunBackend) ?? usable[0];
 
-  if (!runnable) {
-    // Nothing has flask. Fall through to the first real Python so main.py
-    // reports the missing package itself, which is the clearest error.
-    console.warn(
-      "No Python has the server's packages installed. Run: python script/setup.py --venv",
-    );
-    cached = usable[0];
+  if (isComplete(target)) {
+    cached = target;
     return cached;
   }
 
-  if (!complete) {
+  const missing = canRunBackend(target)
+    ? "the age-detection packages"
+    : "the server's packages";
+
+  if (repair(target, missing) && isComplete(target)) {
+    cached = target;
+    return cached;
+  }
+
+  // Repair failed or was declined. Use the most capable interpreter available
+  // so the app still starts, and say plainly what won't work.
+  const fallback = usable.find(isComplete) ?? usable.find(canRunBackend) ?? usable[0];
+  if (!canRunBackend(fallback)) {
     console.warn(
-      `Using ${runnable.join(" ")} - it lacks the age-detection packages, so the ` +
+      "No Python has the server's packages installed. Run: python script/setup.py --venv",
+    );
+  } else if (!hasDetectorStack(fallback)) {
+    console.warn(
+      `Using ${fallback.join(" ")} - it lacks the age-detection packages, so the ` +
         `camera's age labels will not work. Fix with: python script/setup.py --venv`,
     );
   }
-
-  cached = runnable;
+  cached = fallback;
   return cached;
 }
