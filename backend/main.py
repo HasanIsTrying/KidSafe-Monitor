@@ -709,6 +709,9 @@ def _load_age_model():
             return True
         except Exception as e:
             print(f"Age model unavailable ({type(e).__name__}: {e})")
+            print("  Fix: reinstall the detector packages with")
+            print("       python script/setup.py --venv")
+            print("  (the demo still works; only the age labels are missing)")
             _age_model_failed = True
             return False
 

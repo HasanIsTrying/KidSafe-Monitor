@@ -450,6 +450,8 @@ Please read these before trusting it with anything that matters.
 - **SMS is Israel-only** as shipped, via the 019 gateway.
 - **Push requires HTTPS** and the parent granting notification permission.
 
+---
+
 ## Tech stack
 
 Python · Flask · SQLite · OpenCV · MediaPipe · PyTorch + HuggingFace

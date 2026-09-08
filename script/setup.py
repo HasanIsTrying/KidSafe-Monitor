@@ -37,6 +37,10 @@ DETECTOR_PACKAGES = [
     "mediapipe>=0.10",
     "transformers>=4.44",
     "torch>=2.4",
+    # transformers' AutoImageProcessor refuses to load without torchvision,
+    # even though nothing here imports it directly. Leaving it out fails only
+    # at the first classification, with "requires the Torchvision library".
+    "torchvision>=0.19",
     "pillow>=10.4",
 ]
 
@@ -47,6 +51,7 @@ DETECTOR_IMPORTS = {
     "mediapipe": "mediapipe",
     "transformers": "transformers",
     "torch": "torch",
+    "torchvision": "torchvision",
     "PIL": "pillow",
 }
 

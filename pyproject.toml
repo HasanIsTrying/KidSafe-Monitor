@@ -16,5 +16,8 @@ detector = [
     "mediapipe>=0.10",
     "transformers>=4.44",
     "torch>=2.4",
+    # Required by transformers' AutoImageProcessor even though nothing
+    # imports it directly; without it the age model refuses to load.
+    "torchvision>=0.19",
     "pillow>=10.4",
 ]
