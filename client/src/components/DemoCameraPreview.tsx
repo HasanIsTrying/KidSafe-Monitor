@@ -403,7 +403,7 @@ export function DemoCameraPreview({
           <p>
             Faces are really being detected (MediaPipe). Age classification is
             unavailable here — it needs the detector's ML packages on the
-            server (<code>script/setup.py --detector</code>). The real system
+            server (<code>python script/setup.py --venv</code>). The real system
             labels each face <i>Child 0-12</i>, <i>Teenager 13-20</i> or{" "}
             <i>Adult 21+</i>, and alerts when a child has no supervisor.
           </p>

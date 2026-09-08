@@ -35,6 +35,31 @@ Runs on **Windows and macOS**.
 
 ## 1. Installation
 
+### 1.0 The easy way: just double-click
+
+After downloading the project, double-click the launcher for your system:
+
+| File | What it starts |
+|---|---|
+| **`Start-Demo.bat`** (Windows) / **`Start-Demo.command`** (macOS) | The demo account — no phone, no credentials |
+| **`Start-KidSafe.bat`** (Windows) / **`Start-KidSafe.command`** (macOS) | The real app |
+
+The **first run** checks for Node.js and Python, offers to install them if
+they're missing (winget on Windows, Homebrew on macOS), then downloads
+everything else. **Every run after that** goes straight to starting the app,
+and prints the address to open.
+
+If a tool has to be installed, the launcher asks you to double-click it once
+more afterwards — a newly installed program isn't on the PATH of an already-open
+window.
+
+> **macOS:** the first double-click may be refused because the file came from
+> the internet. Either right-click → **Open** → **Open**, or run this once in
+> Terminal: `chmod +x *.command`
+
+That's the whole setup. The rest of this section is the manual equivalent, for
+anyone who prefers a terminal or is scripting it.
+
 ### 1.1 Prerequisites
 
 | | Version | Where |
@@ -68,34 +93,33 @@ cd KidSafe-Monitor
 
 ### 1.3 Install the dependencies
 
-One command handles both the Node and Python sides:
+One command installs **everything** — the Node packages, the server's Python
+packages, and the camera detector's ML stack:
 
 ```bash
 python  script/setup.py --venv          # Windows
 python3 script/setup.py --venv          # macOS / Linux
 ```
 
-It runs `npm install`, installs the Python packages, then **verifies every
+It runs `npm install`, installs all the Python packages, then **verifies every
 import** and prints exactly what is missing if anything failed.
+
+Expect it to take a few minutes and download several hundred MB — most of that
+is PyTorch. It's worth it: the ML stack powers the real camera *and* the age
+labels in the demo, so nearly every feature needs it.
 
 | Flag | Effect |
 |---|---|
 | `--venv` | Install Python packages into `./.venv` instead of your system Python. **Recommended** — KidSafe pins versions (MediaPipe constrains `numpy`) that can otherwise disturb your other projects. The app finds `.venv` automatically. |
-| `--detector` | Also install PyTorch, MediaPipe, OpenCV, Transformers and Pillow. Needed for a real camera, and for age labels in the demo preview. Several hundred MB. |
+| `--server-only` | Skip the ML stack. The dashboard and the demo's simulated alerts still work, but a real camera and the demo's age labels won't. |
 | `--skip-npm` | Don't touch `node_modules`. |
 
-For a full install with the camera:
-
-```bash
-python script/setup.py --venv --detector
-```
-
-If that fails on MediaPipe or PyTorch, it's almost always the Python version —
+If it fails on MediaPipe or PyTorch, it's almost always the Python version —
 run it with an older one:
 
 ```bash
-py -3.11 script/setup.py --venv --detector      # Windows
-python3.11 script/setup.py --venv --detector    # macOS
+py -3.11 script/setup.py --venv      # Windows
+python3.11 script/setup.py --venv    # macOS
 ```
 
 ### 1.4 Start it
@@ -163,9 +187,8 @@ cp auth_config.example.json auth_config.json
 
 ### 2.4 A camera and the detector
 
-```bash
-python script/setup.py --venv --detector
-```
+The detector's packages were already installed in [1.3](#13-install-the-dependencies)
+— nothing more to install unless you used `--server-only`.
 
 Grant camera permission: **macOS** gives it to the app that launched the process
 (your Terminal); **Windows** needs Settings → Privacy & security → Camera →
@@ -232,10 +255,10 @@ Hold a photo of a child to the camera with no adult in frame and you get a
 genuine alert. Beside the camera is a live mini-dashboard showing the status,
 the countdown to escalation, the acknowledge button and the detection log.
 
-> **Age labels need the ML packages** (`script/setup.py --detector`). Without
-> them you still get live face boxes and the honest note that age
-> classification is unavailable. The first age reading also takes about a minute
-> while the server loads the model; every one after that is instant.
+> The first age reading takes about a minute while the server loads the model;
+> every one after that is instant. Face boxes appear immediately either way.
+> (If you installed with `--server-only` there are no age labels at all — you
+> get boxes plus a note saying classification is unavailable.)
 
 ### 3.2 What you'll see happen
 
@@ -377,7 +400,7 @@ see **[ARCHITECTURE.md](ARCHITECTURE.md)**.
 | `npm run dev` | just the app, no tunnel |
 | `npm run build` / `npm start` | production build and run |
 | `npm run check` | TypeScript type check |
-| `python script/setup.py --venv --detector` | install everything |
+| `python script/setup.py --venv` | install everything |
 
 Add `-- --no-tunnel` to any launch command to skip ngrok.
 
@@ -402,8 +425,8 @@ Add `-- --no-tunnel` to any launch command to skip ngrok.
 | `Port 5050 is already in use` | Another copy is running. Stop it, or start on another port (see [1.4](#14-start-it)). |
 | A 404 saying "The requested URL was not found" | You opened **3050**. That's the internal Flask backend — the website is on **5050**. |
 | `ngrok not found` | Only needed for phone access. The app still runs; install ngrok or add `-- --no-tunnel`. |
-| Setup fails on mediapipe / torch | Your Python is too new. Use 3.11 or 3.12 (see [1.3](#13-install-the-dependencies)). |
-| Face boxes but no age labels | The ML packages aren't installed — re-run setup with `--detector`. |
+| Setup fails on mediapipe / torch | Your Python is too new. Use 3.11 or 3.12 (see [1.3](#13-install-the-dependencies)), or skip them with --server-only. |
+| Face boxes but no age labels | The ML packages aren't installed (did you use `--server-only`?). Re-run `python script/setup.py --venv`. |
 | The first age reading hangs for ~a minute | Expected. The server is loading the model, once per start. |
 | No SMS or push in the real setup | Check `auth_config.json`. Without credentials the app falls back to demo mode. |
 | "Invalid or expired code" on a correct code | Codes expire after 10 minutes. The terminal prints the gateway's exact reason. |
@@ -426,8 +449,6 @@ Please read these before trusting it with anything that matters.
   battery, notification permissions. Any link failing means no alert.
 - **SMS is Israel-only** as shipped, via the 019 gateway.
 - **Push requires HTTPS** and the parent granting notification permission.
-
----
 
 ## Tech stack
 

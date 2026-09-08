@@ -359,14 +359,15 @@ Environment variables (all optional):
 ### Install
 
 ```bash
-python  script/setup.py --venv --detector    # Windows
-python3 script/setup.py --venv --detector    # macOS
+python  script/setup.py --venv    # Windows
+python3 script/setup.py --venv    # macOS
 ```
 
-That installs the Node packages, the server's Python packages, and (with
-`--detector`) the camera detector's ML packages, then verifies every import and
-reports anything missing. Drop `--detector` to skip the large ML downloads —
-the server and the demo account don't need them.
+That installs everything: the Node packages, the server's Python packages and
+the camera detector's ML stack, then verifies every import and reports anything
+missing. Pass `--server-only` to skip the large ML downloads — the dashboard and
+the demo's simulated alerts still work without them, but a real camera and the
+demo's age labels don't.
 
 **Use `--venv`.** It installs into `./.venv` instead of your system Python,
 which stops KidSafe's pinned versions (MediaPipe constrains `numpy`, for one)
@@ -374,7 +375,7 @@ from disturbing your other projects. The server prefers `./.venv` automatically
 when it exists; `PYTHON=/path/to/python` overrides everything.
 
 If a detector package has no wheel for your Python, use an older interpreter:
-`py -3.11 script/setup.py --venv --detector`. MediaPipe in particular lags new
+`py -3.11 script/setup.py --venv`. MediaPipe in particular lags new
 Python releases by months.
 
 ### Run it — one command

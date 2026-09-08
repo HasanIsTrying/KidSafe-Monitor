@@ -17,6 +17,9 @@ Thumbs.db
 .env
 auth_config.json
 
+# Marker written by the double-click launchers after a successful install
+.setup-complete
+
 # Runtime data — rebuilt automatically on first startup.
 # The SQLite database holds accounts, real phone numbers, vehicle locations,
 # live session tokens and the alert history. It must never be published.

@@ -1,2 +1,10 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# The double-click launchers must keep the line endings their OS expects.
+# A .command file with CRLF fails on macOS with "bad interpreter", which is
+# exactly what happens if the repo is copied from Windows rather than cloned.
+*.command text eol=lf
+*.sh       text eol=lf
+*.bat      text eol=crlf
+*.cmd      text eol=crlf

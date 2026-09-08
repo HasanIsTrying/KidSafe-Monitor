@@ -1,15 +1,17 @@
 """One-command setup for KidSafe: installs everything the app needs.
 
-    python  script/setup.py            (Windows)
-    python3 script/setup.py            (macOS / Linux)
+    python  script/setup.py --venv     (Windows)
+    python3 script/setup.py --venv     (macOS / Linux)
 
-By default it installs only what the *server* needs, which is small and quick.
-The camera detector additionally needs PyTorch, MediaPipe and OpenCV - several
-hundred MB - so those are opt-in:
+Installs EVERYTHING by default - the Node packages, the server's Python
+packages, and the camera detector's ML stack (PyTorch, MediaPipe, OpenCV,
+Transformers, Pillow). That last group is several hundred MB, but nearly every
+feature needs it: the real camera, and the age labels in the demo preview.
 
-    python script/setup.py --detector      # server + camera detector
     python script/setup.py --venv          # install into ./.venv instead of
                                            # the interpreter running this
+    python script/setup.py --server-only   # skip the ML stack (dashboard and
+                                           # simulated alerts only)
     python script/setup.py --skip-npm      # don't touch node_modules
 
 Run it with the interpreter you want KidSafe to use. If you have several
@@ -49,6 +51,14 @@ DETECTOR_IMPORTS = {
 }
 
 MIN_PYTHON = (3, 9)
+
+# Every npm script in this project runs through tsx, and the client build needs
+# vite. If these aren't on disk, `npm install` did not actually complete - which
+# is what produces the confusing "'tsx' is not recognized" at startup.
+NODE_MARKERS = {
+    "tsx": os.path.join("node_modules", "tsx", "package.json"),
+    "vite": os.path.join("node_modules", "vite", "package.json"),
+}
 
 
 def say(message=""):
@@ -112,6 +122,17 @@ def pip_install(python, packages, label):
     return run([python, "-m", "pip", "install", *packages])
 
 
+def verify_node():
+    """Check the Node packages actually landed. Returns a list of what's missing."""
+    missing = []
+    for name, marker in NODE_MARKERS.items():
+        ok = os.path.exists(os.path.join(ROOT, marker))
+        say(f"  {'OK     ' if ok else 'MISSING'} {name:<14} (node_modules)")
+        if not ok:
+            missing.append(name)
+    return missing
+
+
 def verify(python, imports):
     """Import each module in the target interpreter and report what's missing."""
     missing = []
@@ -132,13 +153,16 @@ def main():
         description="Install KidSafe's dependencies.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--detector", action="store_true",
-                        help="also install the camera detector's ML packages (large)")
+    parser.add_argument("--server-only", action="store_true",
+                        help="skip the camera detector's ML packages (large). "
+                             "The dashboard and simulated alerts still work; "
+                             "a real camera and demo age labels won't.")
     parser.add_argument("--venv", action="store_true",
                         help="install into ./.venv instead of this interpreter")
     parser.add_argument("--skip-npm", action="store_true",
                         help="skip 'npm install'")
     args = parser.parse_args()
+    with_detector = not args.server_only
 
     heading("Checking Python")
     if not check_python():
@@ -155,16 +179,16 @@ def main():
         say("  ! Server packages failed to install.")
         return 1
 
-    if args.detector:
+    if with_detector:
         if not pip_install(python, DETECTOR_PACKAGES, "camera detector packages"):
             say()
             say("  ! Detector packages failed to install.")
             say("    The most common cause is a Python version too new for MediaPipe")
             say("    or PyTorch. Try an older interpreter:")
-            say("        py -3.11 script/setup.py --detector --venv    (Windows)")
-            say("        python3.11 script/setup.py --detector --venv  (macOS)")
-            say("    The server itself still works without these - you just")
-            say("    can't run the camera, and the demo account doesn't need it.")
+            say("        py -3.11 script/setup.py --venv      (Windows)")
+            say("        python3.11 script/setup.py --venv    (macOS)")
+            say("    Or skip them with --server-only: the dashboard and the demo's")
+            say("    simulated alerts still work, but a real camera won't.")
 
     if not args.skip_npm:
         heading("Installing Node packages")
@@ -174,12 +198,23 @@ def main():
 
     heading("Verifying")
     missing = verify(python, SERVER_IMPORTS)
-    if args.detector:
+    if with_detector:
         missing += verify(python, DETECTOR_IMPORTS)
+    node_missing = verify_node()
 
     heading("Result")
+    if node_missing:
+        say(f"Node packages missing: {', '.join(node_missing)}")
+        say()
+        say("The app cannot start without them - you would see")
+        say("  \"'tsx' is not recognized\"  or  \"tsx: command not found\".")
+        say()
+        say("Fix it by running, in this folder:")
+        say("    npm install")
+        say("If that fails, check Node.js 20+ is installed:  node -v")
+        return 1
     if missing:
-        say(f"Missing: {', '.join(missing)}")
+        say(f"Python packages missing: {', '.join(missing)}")
         say("Re-run this script, or install those manually.")
         return 1
 
@@ -194,10 +229,11 @@ def main():
     say("Next:")
     say("    npm run demo      - try it with the no-login demo account")
     say("    npm run launch    - normal start (real phone login)")
-    if not args.detector:
+    if not with_detector:
         say()
-        say("The camera detector's packages were not installed.")
-        say("Add them with:  --detector")
+        say("You used --server-only, so the camera detector's packages are")
+        say("missing. A real camera and the demo's age labels need them:")
+        say("    python script/setup.py --venv")
     return 0
 
 
