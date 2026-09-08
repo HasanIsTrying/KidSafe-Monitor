@@ -31,6 +31,10 @@ Runs on **Windows and macOS**.
 > http://127.0.0.1:5050. That gives you a working dashboard with no phone, no
 > camera and no accounts — see [The demo account](#3-the-demo-account).
 
+> **Not a developer?** [**docs/KidSafe-User-Guide.docx**](docs/KidSafe-User-Guide.docx)
+> is a step-by-step manual covering the same ground in plain language, from
+> downloading the files to running the demo and the full system.
+
 ---
 
 ## 1. Installation
@@ -103,6 +107,11 @@ python3 script/setup.py --venv          # macOS / Linux
 
 It runs `npm install`, installs all the Python packages, then **verifies every
 import** and prints exactly what is missing if anything failed.
+
+> You don't strictly have to run this: if the app starts and finds packages
+> missing, it installs them itself and carries on. Running setup first just
+> gets the downloading out of the way. Set `KIDSAFE_NO_AUTO_INSTALL=1` if you'd
+> rather manage the environment yourself.
 
 Expect it to take a few minutes and download several hundred MB — most of that
 is PyTorch. It's worth it: the ML stack powers the real camera *and* the age
@@ -426,7 +435,8 @@ Add `-- --no-tunnel` to any launch command to skip ngrok.
 | A 404 saying "The requested URL was not found" | You opened **3050**. That's the internal Flask backend — the website is on **5050**. |
 | `ngrok not found` | Only needed for phone access. The app still runs; install ngrok or add `-- --no-tunnel`. |
 | Setup fails on mediapipe / torch | Your Python is too new. Use 3.11 or 3.12 (see [1.3](#13-install-the-dependencies)), or skip them with --server-only. |
-| Face boxes but no age labels | The ML packages aren't installed (did you use `--server-only`?). Re-run `python script/setup.py --venv`. |
+| Face boxes but no age labels | The ML packages are missing. Restarting fixes it — the app installs them itself. If you set `KIDSAFE_NO_AUTO_INSTALL=1`, run `python script/setup.py --venv` instead. |
+| `AutoImageProcessor requires the Torchvision library` | Same cause. Restart and let it install, or run setup manually. |
 | The first age reading hangs for ~a minute | Expected. The server is loading the model, once per start. |
 | No SMS or push in the real setup | Check `auth_config.json`. Without credentials the app falls back to demo mode. |
 | "Invalid or expired code" on a correct code | Codes expire after 10 minutes. The terminal prints the gateway's exact reason. |

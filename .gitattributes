@@ -8,3 +8,10 @@
 *.sh       text eol=lf
 *.bat      text eol=crlf
 *.cmd      text eol=crlf
+
+# Office documents and images are binary; never apply line-ending conversion,
+# which would corrupt them.
+*.docx binary
+*.pdf  binary
+*.png  binary
+*.ico  binary

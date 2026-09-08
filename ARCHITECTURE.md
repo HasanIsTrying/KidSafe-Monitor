@@ -139,12 +139,36 @@ credentials (`onesignal_app_id`, `onesignal_api_key`). See
 1. You run `npm run launch` (or `npm run dev` for the app alone).
 2. **Express** (`server/index.ts`) starts and runs `registerRoutes` (`server/routes.ts`).
 3. `registerRoutes` **spawns the Flask backend** (`backend/main.py`, under the Python 3
-   that `server/python.ts` found for this platform) and sets up the API proxy.
+   that `server/python.ts` chose — see 5.1b) and sets up the API proxy.
    Flask binds to `FLASK_PORT` (3050).
 4. Flask starts a **background escalation thread** (`escalation_watcher`) that wakes
-   every 10 seconds.
+   every 10 seconds. The watcher itself ticks once a second.
 5. In dev, Express attaches the **Vite** dev server (hot reload). In prod it serves the
    built static files. Express listens on `PORT` (5050).
+
+### 5.1b Choosing (and repairing) the Python  → `server/python.ts`
+Which interpreter runs `backend/main.py` is decided at startup, because getting
+it wrong is silent: the server starts, but the age model never loads.
+
+1. **Candidates**, in order: `./.venv`, then `python` / `py -3` / `python3` on
+   Windows, `python3` / `python` elsewhere. `PYTHON` overrides all of it.
+   (`python3` comes last on Windows because a WindowsApps stub of that name
+   opens the Microsoft Store instead of running anything.)
+2. **Each is probed for what it can do**, not just what version it is:
+   - `import flask, requests` — can run the backend,
+   - `import torch, torchvision, transformers, cv2` — can also classify ages.
+3. **A `./.venv` wins even when incomplete.** It's the project's declared
+   environment, so it gets *repaired* rather than bypassed — otherwise the app
+   runs one Python while the packages sit in another, which is exactly how the
+   age labels go quiet with no obvious cause.
+4. **Missing packages are installed automatically**: `setup.py` is run with the
+   chosen interpreter, which installs into precisely that environment. Once per
+   process; `KIDSAFE_NO_AUTO_INSTALL=1` disables it.
+5. If the install fails or is disabled, the most capable interpreter is used
+   anyway and the log says plainly what won't work.
+
+> `torchvision` is in the detector list because transformers' `AutoImageProcessor`
+> refuses to initialise without it, even though no code here imports it.
 
 ### 5.2 Registration / Login (phone OTP)  → `client/src/pages/AuthPage.tsx`
 1. The parent enters **name + phone** and presses Sign Up / Log In.
@@ -320,7 +344,7 @@ The three processes live in three directories: `backend/` (Flask), `detector/`
 | `script/start.ts` | One-command launcher: runs the app **and** the ngrok tunnel together, tags their output, shuts the whole tree down on Ctrl+C. |
 | `server/index.ts` | Express entry: middleware, error handling, Vite/static, listen on `PORT`. |
 | `server/routes.ts` | Spawns Flask; proxies all API paths (`/auth/*`, `/account/*`, `/alerts*`, `/cameras`, `/camera/*`, `/receive-alert`, `/device-config`). |
-| `server/python.ts` | Finds a working Python 3 (`python3` vs `python`/`py -3`), honouring the `PYTHON` override. |
+| `server/python.ts` | Picks the Python that runs the backend, and installs any missing packages into it — see 5.1b. |
 | `server/vite.ts` / `server/static.ts` | Dev (Vite middleware) vs prod (static files) serving. |
 | `client/src/App.tsx` | Routes + auth gate (`Protected`). |
 | `client/src/pages/AuthPage.tsx` | Login / sign‑up (phone OTP, 2 steps). |
